@@ -31,21 +31,33 @@ loads millions of rows in seconds.
 ```mermaid
 sequenceDiagram
     participant B as Browser
-    participant A as APEX (pkg_oci_par / pkg_oci_load)
+    participant A as APEX / database<br/>(pkg_oci_par, pkg_oci_load)
     participant O as OCI Object Storage
-    participant J as Scheduler job (COPY_DATA)
+    participant J as Scheduler job
 
     B->>A: GET_UPLOAD_URL (file name)
     A->>O: Create PAR (signed with OCI API key)
     O-->>A: PAR URL (write one object, expires in 2 h)
-    A-->>B: PAR URL
-    B->>O: PUT file (or multipart: start, parts ×4 parallel, commit)
+    A-->>B: PAR URL + object name
+    alt file up to 128 MB
+        B->>O: PUT file
+    else larger file
+        B->>O: Start multipart upload
+        B->>O: PUT 64 MB parts (4 in parallel, retried up to 3 times)
+        B->>O: Commit
+    end
     B->>A: START_LOAD (CSV only)
+    A->>A: oci_load_log row (QUEUED)
     A->>J: dbms_scheduler.create_job
-    J->>O: COPY_DATA reads the CSV
-    J->>A: oci_load_log: rows loaded / rejected
-    loop every 3 s
-        B->>A: LOAD_STATUS
+    A-->>B: load ID
+    par Load runs in the background
+        J->>O: COPY_DATA reads the CSV
+        J->>A: Rows into LANDING_APEX_UPLOAD, oci_load_log RUNNING then SUCCESS / ERROR
+    and Browser checks status
+        loop every 3 s until SUCCESS or ERROR
+            B->>A: LOAD_STATUS (load ID)
+            A-->>B: status, rows loaded / rejected
+        end
     end
 ```
 
