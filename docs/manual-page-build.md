@@ -25,12 +25,19 @@ browsers keep serving the old one:
 
 **Page properties**
 
-- JavaScript → File URLs: `#APP_FILES#par_upload.js?v=1`
+- JavaScript → File URLs (OpenPGP.js is only needed for the optional PGP encryption):
+
+  ```
+  https://cdn.jsdelivr.net/npm/openpgp@6.3.2/dist/openpgp.min.js
+  #APP_FILES#par_upload.js?v=1
+  ```
+
 - CSS → File URLs: `#APP_FILES#par_upload.css?v=1`
 - JavaScript → Execute when Page Loads:
 
   ```js
-  parUpload.initDropZone({ dropId: "parDrop", fileInputId: "parFile", fileNameId: "parFileName" });
+  parUpload.initDropZone({ dropId: "parDrop", fileInputId: "parFile", fileNameId: "parFileName",
+                          encryptToggleId: "parEncrypt" });
   ```
 
 **Region `Upload`** (Static Content, header shown). Use a plain file input, not a File
@@ -38,6 +45,11 @@ Browse item, so APEX never submits the file to the database:
 
 ```html
 <div class="par-card">
+  <!-- Optional PGP toggle; remove this label if you don't use encryption -->
+  <label class="par-options">
+    <input type="checkbox" id="parEncrypt">
+    <span class="fa fa-lock" aria-hidden="true"></span> Encrypt with PGP before upload
+  </label>
   <label class="par-drop" id="parDrop" for="parFile">
     <span class="fa fa-cloud-upload par-drop-icon" aria-hidden="true"></span>
     <span class="par-drop-title">Drop a file here or click to browse</span>
@@ -68,7 +80,9 @@ parUpload.start({
   stepUploadId:  "parStepUpload",
   stepLoadId:    "parStepLoad",
   refreshRegion: "uploads",
-  loadRegion:    "loads"
+  loadRegion:    "loads",
+  encryptToggleId: "parEncrypt",
+  publicKeyUrl:    apex.env.APP_FILES + "pgp_public_key.asc"
 });
 ```
 

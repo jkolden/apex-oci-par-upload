@@ -10,10 +10,14 @@ page 4 (
         cursorFocus: doNotFocusCursor
     }
     javaScript {
-        fileUrls: #APP_FILES#par_upload.js
+        fileUrls: [
+            https://cdn.jsdelivr.net/npm/openpgp@6.3.2/dist/openpgp.min.js
+            #APP_FILES#par_upload.js
+        ]
         executeWhenPageLoads:
             ```javascript-browser
-            parUpload.initDropZone({ dropId: "parDrop", fileInputId: "parFile", fileNameId: "parFileName" });
+            parUpload.initDropZone({ dropId: "parDrop", fileInputId: "parFile", fileNameId: "parFileName",
+                                     encryptToggleId: "parEncrypt" });
             
             ```
     }
@@ -82,16 +86,21 @@ page 4 (
         advanced {
             htmlDomId: loads
         }
+        reportLayout {
+            numberOfRows: 15
+        }
         componentAppearance {
             template: @/standard
             templateOptions: [
                 #DEFAULT#
+                t-Report--stretch
                 t-Report--altRowsDefault
                 t-Report--rowHighlight
             ]
         }
         pagination {
-            type: nextAndPreviousLinks
+            type: rowRangesXToYOfZWithPagination
+            displayPosition: topRight
         }
 
         column ELAPSED_SECS (
@@ -247,6 +256,10 @@ page 4 (
             htmlCode:
                 ```html
                 <div class="par-card">
+                     <label class="par-options">
+                       <input type="checkbox" id="parEncrypt">
+                       <span class="fa fa-lock" aria-hidden="true"></span> Encrypt with PGP before upload
+                     </label>
                      <label class="par-drop" id="parDrop" for="parFile">
                        <span class="fa fa-cloud-upload par-drop-icon" aria-hidden="true"></span>
                        <span class="par-drop-title">Drop a file here or click to browse</span>
@@ -404,7 +417,9 @@ page 4 (
                       stepUploadId:  "parStepUpload",
                       stepLoadId:    "parStepLoad",
                       refreshRegion: "uploads",
-                      loadRegion:    "loads"
+                      loadRegion:    "loads",
+                      encryptToggleId: "parEncrypt",
+                      publicKeyUrl:    apex.env.APP_FILES + "pgp_public_key.asc"
                     });
                     
                     

@@ -131,7 +131,7 @@ page 6 (
             htmlDomId: records
         }
         pagination {
-            type: rowRangesXToYOfZ
+            type: rowRangesXToY
             displayPosition: topAndBottomRight
         }
         messages {

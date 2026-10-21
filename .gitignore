@@ -10,3 +10,9 @@ __pycache__/
 Wallet_*.zip
 ewallet.*
 .env
+
+# PGP test output and keyrings (public keys are uploaded to APEX, not committed)
+*.pgp
+*.gpg
+*.asc
+.gnupg*/

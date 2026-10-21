@@ -22,6 +22,8 @@ lands, a background job runs `DBMS_CLOUD.COPY_DATA` from the bucket into a table
 | 856 MB CSV, 6.5 million rows | Upload 5 min 41 s (2.5 MB/s, limited by the uploader's connection) · **load into ATP 23 s** · 0 rejected |
 | 1 GB binary file | Multipart upload, 16 × 64 MB parts, 7 min 6 s |
 | 1,000-row CSV with 3 bad rows | 997 loaded, 3 rejected and shown with the reason for each |
+| PGP-encrypted upload, 1,000-row CSV | Bucket holds ciphertext only (15% of original size); decrypts to a byte-for-byte identical file |
+| PGP encryption, 856 MB CSV (outside the browser, same code path) | 125 MB of ciphertext (14.6%), ~77 MB/s, memory stays around 100–140 MB |
 
 Upload time depends on the user's connection. Once a file is in the bucket, the database
 loads millions of rows in seconds.
@@ -70,6 +72,8 @@ sequenceDiagram
 - `oci_load_log` audits every load and every failed upload; stuck or dead jobs are detected
 - Rejected rows are kept, with a dialog showing each bad line and why it was rejected
 - Loaded Records page with KPI cards that follow the report's filters
+- Optional **PGP encryption in the browser**: files are compressed and encrypted with your
+  public key before upload, so the bucket only ever holds ciphertext
 - Test data generator for files of any size, with deliberate bad rows if you want them
 
 ## Repository layout
@@ -88,6 +92,7 @@ db/
   get_invoice_kpis.sql     KPIs for the Loaded Records page
   uninstall.sql
 tools/make_test_csv.py     test CSV generator
+tools/pgp_verify.sh        proves a PGP upload round trip (ciphertext in bucket, identical after decrypt)
 docs/manual-page-build.md  build the pages by hand instead of importing
 ```
 
@@ -240,6 +245,62 @@ select count(*), sum(invoice_amount) from landing_apex_upload;
 Each load **truncates** the target table first, like a landing table. To append instead,
 remove the `truncate` in `run_load`.
 
+## Optional: PGP encryption in the browser
+
+HTTPS already encrypts every upload in transit, and OCI encrypts stored objects. PGP adds
+that the stored file is **unreadable to anyone with bucket access** unless they hold your
+private key, which is what many PII file-transfer policies ask for.
+
+With **Encrypt with PGP before upload** ticked, the browser gzips the file in 1 MB blocks,
+encrypts it with [OpenPGP.js](https://openpgpjs.org/) using your **public** key, and uploads
+the ciphertext as `<name>.gz.pgp`. Large files still stream in parts with bounded memory.
+CSVs shrink a lot when compressed, so encrypted uploads are usually much faster.
+
+> Encrypted files are **not loaded into the database**: that needs server-side decryption
+> (for example an OCI Function holding the private key in OCI Vault), which this repo
+> doesn't include yet. The "Load into ATP" step shows as skipped for encrypted uploads.
+
+**Setup**
+
+1. Create a key pair (or use your organization's). For a test key with GnuPG:
+
+   ```bash
+   gpg --quick-gen-key "PAR Upload test key <you@example.com>" default default 1y
+   gpg --armor --export you@example.com > pgp_public_key.asc
+   ```
+
+   Keep the **private** key off the server and out of the app. Only the public key is uploaded.
+2. Upload `pgp_public_key.asc` to Shared Components → Static Application Files.
+3. The page already loads OpenPGP.js 6.3.2 from jsDelivr before `par_upload.js`. To avoid
+   the CDN, upload `openpgp.min.js` as a static file and point the File URL at it.
+4. Tick the box on the upload page. It's unticked by default.
+
+**Prove it**
+
+Create a short-lived read URL for the uploaded object (SQL Commands):
+
+```sql
+begin
+  dbms_output.put_line(pkg_oci_par.generate_pre_auth_request(
+    'MINUTE', 15, 'ObjectRead', 'apex_uploads/<object>.csv.gz.pgp'));
+end;
+```
+
+Then, in Git Bash or any shell with `gpg` (set `GNUPGHOME` if your key isn't in the default keyring):
+
+```bash
+tools/pgp_verify.sh "<read URL>" path/to/original.csv
+```
+
+It shows the stored bytes are binary ciphertext, decrypts with your private key, and
+compares checksums with the original. To decrypt by hand: `gpg -d file.csv.gz.pgp | gzip -dc > file.csv`
+
+**Why the file is gzipped first:** OpenPGP.js's built-in compression reads the whole input
+into memory when the upload is slower than encryption, which it always is. Compressing 1 MB
+blocks with the browser's native `CompressionStream` and turning OpenPGP compression off keeps
+memory bounded. The result is a standard multi-member gzip that `gzip`, zlib and Python
+read as one file.
+
 ## Configuration reference
 
 | Setting | Where | Default |
@@ -249,6 +310,8 @@ remove the `truncate` in `run_load`.
 | Target table | `pkg_oci_load.gc_target_table` | `LANDING_APEX_UPLOAD` |
 | Bad rows allowed before the load fails | `pkg_oci_load.gc_reject_limit` | 100 |
 | Part size / multipart threshold / parallel parts / retries | top of `par_upload.js` | 64 MB / 128 MB / 4 / 3 |
+| Encrypted part size / gzip block size | `ENC_PART_SIZE` / `ENC_BLOCK_SIZE` in `par_upload.js` | 16 MB / 1 MB |
+| PGP public key | `publicKeyUrl` option on the Upload button | `#APP_FILES#pgp_public_key.asc` |
 | Status poll interval / give-up time | top of `par_upload.js` | 3 s / 60 min |
 
 ## Troubleshooting
@@ -258,6 +321,8 @@ remove the `truncate` in `run_load`.
 | `ORA-20111 ... (HTTP 401)` from GET_UPLOAD_URL | Web Credential key, fingerprint or OCIDs are wrong, or the API key was deleted |
 | `ORA-20111 ... (HTTP 404)` or `(HTTP 403)` | The IAM user lacks `manage objects` / `PAR_MANAGE` on the bucket, or the namespace or bucket name is wrong |
 | `PUT failed: network error` with no HTTP status | Connectivity or CORS. OCI returns permissive CORS headers for PAR requests, so this is usually the network or an expired PAR |
+| "OpenPGP.js is not loaded on this page" | The OpenPGP.js File URL is missing or listed after `par_upload.js` |
+| "Could not load the PGP public key (HTTP 404)" | `pgp_public_key.asc` isn't uploaded as a static application file |
 | `... is not a function` in the browser console | The browser is using a cached old `par_upload.js`. Bump `?v=N` on the page's File URL |
 | Load stays QUEUED | The scheduler job couldn't start (check `CREATE JOB`). The page's status check marks dead jobs as ERROR |
 | Rejected Rows says "no longer available" | The `COPY$n_LOG`/`COPY$n_BAD` tables were dropped (`dbms_cloud.delete_all_operations`) |

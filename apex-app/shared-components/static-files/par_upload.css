@@ -57,6 +57,24 @@
     overflow-wrap: anywhere;
 }
 
+/* ---- Options (PGP toggle) ----------------------------------------------- */
+.par-options {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.par-options input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--par-primary);
+}
+.par-options .fa {
+    color: var(--par-primary);
+}
+
 /* ---- Steps -------------------------------------------------------------- */
 .par-steps {
     display: flex;
