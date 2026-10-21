@@ -280,7 +280,3 @@ order by message_timestamp desc;
   it with an authorization scheme outside of demos.
 - `COPY$n_LOG`/`COPY$n_BAD` tables accumulate. Clean them up periodically with
   `dbms_cloud.delete_all_operations('COPY')`.
-
-## License
-
-[MIT](LICENSE)
