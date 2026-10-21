@@ -9,6 +9,10 @@ short-lived, single-object [pre-authenticated request](https://docs.oracle.com/e
 (PAR). The browser uploads to it directly, in parallel parts for large files. When a CSV
 lands, a background job runs `DBMS_CLOUD.COPY_DATA` from the bucket into a table.
 
+> **Credit:** the pre-authenticated request code builds on Jon Dixon's
+> [Using OCI Pre-Authenticated Requests with APEX](https://blog.cloudnueva.com/apex-oci-par)
+> (Cloud Nueva). Thanks, Jon!
+
 ![PAR Upload page](docs/images/par-upload-page.png)
 
 ## Results from testing
@@ -276,11 +280,6 @@ order by message_timestamp desc;
   it with an authorization scheme outside of demos.
 - `COPY$n_LOG`/`COPY$n_BAD` tables accumulate. Clean them up periodically with
   `dbms_cloud.delete_all_operations('COPY')`.
-
-## Credits
-
-The PAR creation code is adapted from Jon Dixon's
-[Using OCI Pre-Authenticated Requests with APEX](https://blog.cloudnueva.com/apex-oci-par).
 
 ## License
 
