@@ -1,0 +1,534 @@
+page 6 (
+    name: Loaded Records
+    alias: LOADED-RECORDS
+    title: Loaded Records
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    css {
+        inline:
+            ```css
+            /* ---- Invoice KPI cards ---------------------------------------------- */
+            .invoice-kpis .a-CardView-item[data-id="INVOICES"] { --kpi-accent: var(--u-color-1,  #2f80ed); }
+            .invoice-kpis .a-CardView-item[data-id="SPEND"]    { --kpi-accent: var(--u-color-4,  #27ae60); }
+            .invoice-kpis .a-CardView-item[data-id="AVG"]      { --kpi-accent: var(--u-color-2,  #00a3bf); }
+            .invoice-kpis .a-CardView-item[data-id="MAX"]      { --kpi-accent: var(--u-color-9,  #e67e22); }
+            .invoice-kpis .a-CardView-item[data-id="VENDORS"]  { --kpi-accent: var(--u-color-3,  #8e44ad); }
+            .invoice-kpis .a-CardView-item[data-id="GLDAYS"]   { --kpi-accent: var(--u-color-6,  #d35400); }
+            
+            .invoice-kpis .a-CardView {
+                position: relative;
+                height: 100%;
+                border: 1px solid var(--ut-component-border-color, rgba(0, 0, 0, .08));
+                border-radius: 12px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 4px 12px rgba(0, 0, 0, .04);
+                overflow: hidden;
+                transition: transform .15s ease, box-shadow .15s ease;
+            }
+            .invoice-kpis .a-CardView::before {            /* accent bar on the left edge */
+                content: "";
+                position: absolute;
+                inset: 0 auto 0 0;
+                width: 4px;
+                background: var(--kpi-accent);
+            }
+            .invoice-kpis .a-CardView:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+            }
+            
+            /* Header: icon + label */
+            .invoice-kpis .a-CardView-header {
+                align-items: center;
+                gap: 10px;
+                padding: 16px 16px 0 20px;
+            }
+            .invoice-kpis .a-CardView .a-CardView-icon.u-color {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 36px;
+                height: 36px;
+                border-radius: 10px;
+                font-size: 18px;
+                color: var(--kpi-accent) !important;
+                background-color: color-mix(in srgb, var(--kpi-accent) 14%, transparent) !important;
+            }
+            .invoice-kpis .a-CardView-title {
+                margin: 0;
+                font-size: 12px;
+                font-weight: 600;
+                letter-spacing: .06em;
+                text-transform: uppercase;
+                opacity: .7;
+            }
+            
+            /* Body: the number */
+            .invoice-kpis .a-CardView-body {
+                padding: 6px 16px 18px 20px;
+            }
+            .invoice-kpis .a-CardView-mainContent {
+                font-size: 28px;
+                font-weight: 700;
+                line-height: 1.2;
+                letter-spacing: -.01em;
+                font-variant-numeric: tabular-nums;
+            }
+            
+            ```
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Breadcrumb
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region loaded-records (
+        name: Loaded Records
+        type: interactiveReport
+        source {
+            location: localDatabase
+            tableName: LANDING_APEX_UPLOAD
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/interactive-report
+            templateOptions: [
+                #DEFAULT#
+                t-IRR-region--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+        }
+        advanced {
+            htmlDomId: records
+        }
+        pagination {
+            type: rowRangesXToYOfZ
+            displayPosition: topAndBottomRight
+        }
+        messages {
+            whenNoDataFound: No data found.
+            whenMoreDataFound: The maximum row count for this report is #MAX_ROW_COUNT# rows.  Please apply a filter to reduce the number of records in your query.
+        }
+        advanced {
+            savedReportMappingIdentifier: 25757227252620100
+        }
+
+        column CREATED_TS (
+            type: plainText
+            heading {
+                heading: Created Ts
+            }
+            layout {
+                sequence: 11
+            }
+            appearance {
+                formatMask: SINCE
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: K
+            }
+        )
+
+        column CURRENCY_CODE (
+            type: plainText
+            heading {
+                heading: Currency Code
+            }
+            layout {
+                sequence: 8
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: H
+            }
+        )
+
+        column DESCRIPTION (
+            type: plainText
+            heading {
+                heading: Description
+            }
+            layout {
+                sequence: 10
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: J
+            }
+        )
+
+        column GL_DATE (
+            type: plainText
+            heading {
+                heading: Gl Date
+            }
+            layout {
+                sequence: 6
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: F
+            }
+        )
+
+        column INVOICE_AMOUNT (
+            type: plainText
+            heading {
+                heading: Invoice Amount
+                alignment: end
+            }
+            layout {
+                sequence: 7
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G999G999G999G999G999G990D00
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: G
+            }
+        )
+
+        column INVOICE_DATE (
+            type: plainText
+            heading {
+                heading: Invoice Date
+            }
+            layout {
+                sequence: 5
+            }
+            source {
+                dataType: DATE
+            }
+            advanced {
+                endUserAlias: E
+            }
+        )
+
+        column INVOICE_ID (
+            type: plainText
+            heading {
+                heading: Invoice ID
+                alignment: end
+            }
+            layout {
+                sequence: 1
+                columnAlignment: end
+            }
+            source {
+                dataType: NUMBER
+            }
+            advanced {
+                endUserAlias: A
+            }
+        )
+
+        column INVOICE_NUM (
+            type: plainText
+            heading {
+                heading: Invoice Num
+            }
+            layout {
+                sequence: 2
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: B
+            }
+        )
+
+        column PAYMENT_TERMS (
+            type: plainText
+            heading {
+                heading: Payment Terms
+            }
+            layout {
+                sequence: 9
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: I
+            }
+        )
+
+        column VENDOR_NAME (
+            type: plainText
+            heading {
+                heading: Vendor Name
+            }
+            layout {
+                sequence: 4
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: D
+            }
+        )
+
+        column VENDOR_NUM (
+            type: plainText
+            heading {
+                heading: Vendor Num
+            }
+            layout {
+                sequence: 3
+            }
+            source {
+                dataType: STRING
+            }
+            advanced {
+                endUserAlias: C
+            }
+        )
+
+        page {
+            borderWidth: 0.5
+            borderColor: #666666
+        }
+
+        savedReport primary (
+            visibility: primaryDefault
+            view {
+                rowsPerPage: 50
+            }
+
+            displayColumn CREATED_TS (
+                sequence: 11
+            )
+
+            displayColumn CURRENCY_CODE (
+                sequence: 8
+            )
+
+            displayColumn DESCRIPTION (
+                sequence: 10
+            )
+
+            displayColumn GL_DATE (
+                sequence: 6
+            )
+
+            displayColumn INVOICE_AMOUNT (
+                sequence: 7
+            )
+
+            displayColumn INVOICE_DATE (
+                sequence: 5
+            )
+
+            displayColumn INVOICE_ID (
+                sequence: 1
+            )
+
+            displayColumn INVOICE_NUM (
+                sequence: 2
+            )
+
+            displayColumn PAYMENT_TERMS (
+                sequence: 9
+            )
+
+            displayColumn VENDOR_NAME (
+                sequence: 4
+            )
+
+            displayColumn VENDOR_NUM (
+                sequence: 3
+            )
+
+            filter ir-condition (
+                type: rowSearch
+                search: Blue Ridge Transportation
+                advanced {
+                    enabled: false
+                }
+            )
+
+        )
+
+    )
+
+    region tiles (
+        name: Tiles
+        type: cards
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select *
+                from table(get_invoice_kpis(:APP_PAGE_ID, 'records'))
+                order by sort_order
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/cards-container
+            templateOptions: [
+                #DEFAULT#
+                t-CardsRegion--hideHeader js-addHiddenHeadingRoleDesc
+            ]
+            cssClasses: invoice-kpis
+        }
+        componentAppearance {
+            gridColumns: 5
+        }
+        card {
+            primaryKeyColumn1: KPI_KEY
+        }
+        title {
+            column: TITLE
+        }
+        body {
+            column: DISPLAY
+        }
+        iconAndBadge {
+            iconSource: iconClassColumn
+            iconColumn: ICON_CLASS
+        }
+    )
+
+    button truncate (
+        buttonName: Truncate
+        label: Truncate
+        layout {
+            sequence: 10
+            region: @loaded-records
+            slot: rightOfInteractiveReportSearchBar
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction native-confirm (
+            action: confirm
+            settings {
+                message: Delete all rows from LANDING_APEX_UPLOAD? This can't be undone.
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+        triggerAction native-execute-plsql-code (
+            action: executeServerSideCode
+            settings {
+                plsqlCode:
+                    ```plsql
+                    begin
+                      execute immediate 'truncate table landing_apex_upload';
+                    end;
+                    
+                    ```
+            }
+            execution {
+                sequence: 20
+            }
+        )
+
+        triggerAction native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @loaded-records
+            }
+            execution {
+                sequence: 30
+            }
+        )
+
+        triggerAction native-refresh_1 (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @tiles
+            }
+            execution {
+                sequence: 40
+            }
+        )
+
+    )
+
+    dynamicAction after-refresh (
+        name: after refresh
+        execution {
+            sequence: 10
+        }
+        when {
+            event: apexafterrefresh
+            selectionType: region
+            region: @loaded-records
+        }
+
+        action native-refresh (
+            action: refresh
+            affectedElements {
+                selectionType: region
+                region: @tiles
+            }
+            execution {
+                sequence: 10
+                fireOnInit: false
+            }
+        )
+
+    )
+
+)
+

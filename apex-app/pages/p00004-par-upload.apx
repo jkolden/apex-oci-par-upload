@@ -1,0 +1,541 @@
+page 4 (
+    name: PAR Upload
+    alias: PAR-UPLOAD
+    title: PAR Upload
+    appearance {
+        pageTemplate: @/standard
+        templateOptions: #DEFAULT#
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    javaScript {
+        fileUrls: #APP_FILES#par_upload.js
+        executeWhenPageLoads:
+            ```javascript-browser
+            parUpload.initDropZone({ dropId: "parDrop", fileInputId: "parFile", fileNameId: "parFileName" });
+            
+            ```
+    }
+    css {
+        fileUrls: #APP_FILES#par_upload.css
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region breadcrumb (
+        name: Breadcrumb
+        type: breadcrumb
+        source {
+            breadcrumb: @breadcrumb
+        }
+        layout {
+            sequence: 10
+            slot: breadcrumbBar
+        }
+        appearance {
+            template: @/title-bar
+            templateOptions: [
+                #DEFAULT#
+                t-BreadcrumbRegion--useBreadcrumbTitle
+            ]
+        }
+        componentAppearance {
+            breadcrumbTemplate: @/breadcrumb
+            templateOptions: #DEFAULT#
+        }
+    )
+
+    region load-history (
+        name: Load History
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                select load_id,
+                          replace(object_name, 'apex_uploads/') as file_name,
+                          status,
+                          rows_loaded,
+                          rows_rejected,
+                          to_char(submitted_ts, 'DD-MON-YYYY HH24:MI') as submitted,
+                          round((cast(completed_ts as date) - cast(started_ts as date)) * 86400) as elapsed_secs,
+                          error_message
+                   from oci_load_log
+                   order by load_id desc
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: loads
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+
+        column ELAPSED_SECS (
+            reportColumnQueryId: 7
+            derivedColumn: N
+            heading {
+                heading: Elapsed Secs
+                alignment: end
+            }
+            layout {
+                sequence: 110
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ERROR_MESSAGE (
+            reportColumnQueryId: 8
+            derivedColumn: N
+            heading {
+                heading: Error Message
+            }
+            layout {
+                sequence: 80
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column FILE_NAME (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: File Name
+            }
+            layout {
+                sequence: 90
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column LOAD_ID (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Load Id
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ROWS_LOADED (
+            reportColumnQueryId: 4
+            derivedColumn: N
+            heading {
+                heading: Rows Loaded
+                alignment: end
+            }
+            layout {
+                sequence: 40
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G999G999G990
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column ROWS_REJECTED (
+            reportColumnQueryId: 5
+            derivedColumn: N
+            type: link
+            heading {
+                heading: Rows Rejected
+                alignment: center
+            }
+            layout {
+                sequence: 50
+                columnAlignment: end
+            }
+            appearance {
+                formatMask: 999G999G999G999G999G999G990
+            }
+            link {
+                target: {
+                    page: 5
+                    items: {
+                        P5_LOAD_ID: #LOAD_ID#
+                    }
+                }
+                linkText: #ROWS_REJECTED#
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column STATUS (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Status
+                alignment: center
+            }
+            layout {
+                sequence: 30
+                columnAlignment: center
+            }
+            columnFormatting {
+                htmlExpression: <span class="par-badge" data-status="#STATUS#">#STATUS#</span>
+            }
+            sorting {
+                sortable: false
+            }
+            security {
+                escapeSpecialChars: false
+            }
+        )
+
+        column SUBMITTED (
+            reportColumnQueryId: 6
+            derivedColumn: N
+            heading {
+                heading: Submitted
+            }
+            layout {
+                sequence: 100
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+    )
+
+    region upload (
+        name: Upload
+        type: staticContent
+        source {
+            htmlCode:
+                ```html
+                <div class="par-card">
+                     <label class="par-drop" id="parDrop" for="parFile">
+                       <span class="fa fa-cloud-upload par-drop-icon" aria-hidden="true"></span>
+                       <span class="par-drop-title">Drop a file here or click to browse</span>
+                       <span class="par-drop-file" id="parFileName">CSV files are loaded into ATP after upload</span>
+                       <input type="file" id="parFile">
+                     </label>
+                     <div class="par-steps">
+                       <div class="par-step" id="parStepUpload" data-state="pending">
+                         <span class="par-step-dot"></span>Upload to Object Storage
+                       </div>
+                       <div class="par-step" id="parStepLoad" data-state="pending">
+                         <span class="par-step-dot"></span>Load into ATP
+                       </div>
+                     </div>
+                     <progress class="par-progress" id="parProgress" max="100" value="0"></progress>
+                     <div class="par-status" id="parStatus"></div>
+                   </div>
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--removeHeader js-removeLandmark
+                t-Region--scrollBody
+            ]
+        }
+    )
+
+    region uploaded-files (
+        name: Uploaded Files
+        type: classicReport
+        source {
+            location: localDatabase
+            type: sqlQuery
+            sqlQuery:
+                ```sql
+                 select object_name,
+                          case when bytes >= 1073741824
+                               then to_char(bytes / 1073741824, 'fm999,990.00') || ' GB'
+                               else to_char(bytes / 1048576, 'fm999,990.0') || ' MB'
+                          end as file_size,
+                          to_char(last_modified, 'DD-MON-YYYY HH24:MI') as uploaded
+                   from table(dbms_cloud.list_objects(
+                          credential_name => pkg_oci_load.credential_name,
+                          location_uri    => pkg_oci_load.uploads_uri))
+                   order by last_modified desc
+                
+                ```
+        }
+        layout {
+            sequence: 20
+            slot: body
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        advanced {
+            htmlDomId: uploads
+        }
+        reportLayout {
+            numberOfRows: 15
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--stretch
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: rowRangesXToYOfZWithPagination
+            displayPosition: topRight
+        }
+
+        column FILE_SIZE (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: File Size
+            }
+            layout {
+                sequence: 20
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column OBJECT_NAME (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Object Name
+            }
+            layout {
+                sequence: 10
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+        column UPLOADED (
+            reportColumnQueryId: 3
+            derivedColumn: N
+            heading {
+                heading: Uploaded
+            }
+            layout {
+                sequence: 30
+            }
+            sorting {
+                sortable: false
+            }
+        )
+
+    )
+
+    button upload (
+        buttonName: Upload
+        label: Upload
+        layout {
+            sequence: 10
+            region: @upload
+            slot: next
+        }
+        appearance {
+            buttonTemplate: @/text
+            templateOptions: #DEFAULT#
+        }
+        behavior {
+            action: triggerAction
+        }
+
+        triggerAction native-javascript-code (
+            action: executeJsCode
+            settings {
+                jsCode:
+                    ```javascript-browser
+                    parUpload.start({
+                      fileInputId:   "parFile",
+                      progressId:    "parProgress",
+                      statusId:      "parStatus",
+                      stepUploadId:  "parStepUpload",
+                      stepLoadId:    "parStepLoad",
+                      refreshRegion: "uploads",
+                      loadRegion:    "loads"
+                    });
+                    
+                    
+                    ```
+            }
+            execution {
+                sequence: 10
+            }
+        )
+
+    )
+
+    process get-upload-url (
+        name: GET_UPLOAD_URL
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                  l_object_name varchar2(1000);
+                  l_url         varchar2(2000);
+                begin
+                  pkg_oci_par.get_upload_url(
+                    p_file_name   => apex_application.g_x01,
+                    p_object_name => l_object_name,
+                    p_upload_url  => l_url);
+                  apex_json.open_object;
+                  apex_json.write('objectName', l_object_name);
+                  apex_json.write('url', l_url);
+                  apex_json.close_object;
+                exception when others then
+                  apex_json.open_object;
+                  apex_json.write('error', sqlerrm);
+                  apex_json.close_object;
+                end;
+                
+                ```
+        }
+        execution {
+            sequence: 10
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 23754361437644642
+        }
+    )
+
+    process load-status (
+        name: LOAD_STATUS
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                     l_row oci_load_log%rowtype;
+                   begin
+                     pkg_oci_load.check_job(to_number(apex_application.g_x01));   -- catches jobs that died
+                     select * into l_row from oci_load_log where load_id = to_number(apex_application.g_x01);
+                     apex_json.open_object;
+                     apex_json.write('status',       l_row.status);
+                     apex_json.write('rowsLoaded',   l_row.rows_loaded);
+                     apex_json.write('rowsRejected', l_row.rows_rejected);
+                     apex_json.write('elapsedSecs',  round(extract(day    from (l_row.completed_ts - l_row.started_ts)) * 86400
+                                                         + extract(hour   from (l_row.completed_ts - l_row.started_ts)) * 3600
+                                                         + extract(minute from (l_row.completed_ts - l_row.started_ts)) * 60
+                                                         + extract(second from (l_row.completed_ts - l_row.started_ts))));
+                     apex_json.write('error',        l_row.error_message);
+                     apex_json.close_object;
+                   end;
+                ```
+        }
+        execution {
+            sequence: 30
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 23754932704644648
+        }
+    )
+
+    process log-upload-error (
+        name: LOG_UPLOAD_ERROR
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                begin
+                     pkg_oci_load.log_upload_failure(
+                       p_file_name   => apex_application.g_x01,
+                       p_object_name => apex_application.g_x02,
+                       p_error       => apex_application.g_x03);
+                   end;
+                ```
+        }
+        execution {
+            sequence: 40
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 25730852142864620
+        }
+    )
+
+    process start-load (
+        name: START_LOAD
+        type: executeCode
+        source {
+            plsqlCode:
+                ```plsql
+                declare
+                     l_load_id number;
+                   begin
+                     l_load_id := pkg_oci_load.submit_load(apex_application.g_x01);
+                     apex_json.open_object;
+                     apex_json.write('loadId', l_load_id);
+                     apex_json.close_object;
+                   exception when others then
+                     apex_json.open_object;
+                     apex_json.write('error', sqlerrm);
+                     apex_json.close_object;
+                   end;
+                ```
+        }
+        execution {
+            sequence: 20
+            point: ajaxCallback
+        }
+        advanced {
+            executionMappingIdentifier: 23754814740644647
+        }
+    )
+
+)
+

@@ -1,0 +1,157 @@
+/*
+ * par_upload.css
+ * Styles for the PAR Upload page. Colors come from Universal Theme variables so the
+ * page follows the app's theme style; the fallbacks are only used outside UT.
+ */
+.par-card {
+    --par-primary: var(--ut-palette-primary, #0572ce);
+    --par-success: var(--ut-palette-success, #278701);
+    --par-danger:  var(--ut-palette-danger, #cb1100);
+    --par-border:  var(--ut-component-border-color, rgba(0, 0, 0, .1));
+    --par-muted:   var(--ut-body-text-color, #404040);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ---- Drop zone ---------------------------------------------------------- */
+.par-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 32px 16px;
+    border: 2px dashed var(--par-border);
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s;
+}
+.par-drop:hover,
+.par-drop.is-over {
+    border-color: var(--par-primary);
+    background-color: color-mix(in srgb, var(--par-primary) 6%, transparent);
+}
+.par-drop.has-file {
+    border-style: solid;
+    border-color: var(--par-primary);
+}
+.par-drop input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+.par-drop-icon {
+    font-size: 32px;
+    color: var(--par-primary);
+}
+.par-drop-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+.par-drop-file {
+    font-size: 13px;
+    opacity: .75;
+    overflow-wrap: anywhere;
+}
+
+/* ---- Steps -------------------------------------------------------------- */
+.par-steps {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.par-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: .55;
+}
+.par-step + .par-step::before {
+    content: "";
+    width: 32px;
+    height: 2px;
+    margin-right: 4px;
+    background: var(--par-border);
+}
+.par-step-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    font-size: 12px;
+    line-height: 1;
+}
+.par-step[data-state="active"]  { opacity: 1; color: var(--par-primary); }
+.par-step[data-state="done"]    { opacity: 1; color: var(--par-success); }
+.par-step[data-state="error"]   { opacity: 1; color: var(--par-danger); }
+.par-step[data-state="skipped"] { opacity: .35; text-decoration: line-through; }
+.par-step[data-state="active"] .par-step-dot { animation: par-pulse 1.2s ease-in-out infinite; }
+.par-step[data-state="done"]   .par-step-dot::after { content: "\2713"; }
+.par-step[data-state="error"]  .par-step-dot::after { content: "!"; }
+.par-step[data-state="done"]   .par-step-dot,
+.par-step[data-state="error"]  .par-step-dot { background: currentColor; }
+.par-step[data-state="done"]   .par-step-dot::after,
+.par-step[data-state="error"]  .par-step-dot::after { color: #fff; }
+
+@keyframes par-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 40%, transparent); }
+    50%      { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* ---- Progress ----------------------------------------------------------- */
+.par-progress {
+    width: 100%;
+    height: 8px;
+    border: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    appearance: none;
+    background: var(--par-border);
+}
+.par-progress::-webkit-progress-bar   { background: var(--par-border); }
+.par-progress::-webkit-progress-value { background: var(--par-primary); transition: width .2s; }
+.par-progress::-moz-progress-bar      { background: var(--par-primary); }
+
+/* Indeterminate (no value attribute) while ATP loads */
+.par-progress:not([value])::-webkit-progress-bar,
+.par-progress:indeterminate {
+    background: linear-gradient(90deg, var(--par-border) 0%, var(--par-primary) 50%, var(--par-border) 100%);
+    background-size: 200% 100%;
+    animation: par-slide 1.4s linear infinite;
+}
+.par-progress:indeterminate::-moz-progress-bar { background: transparent; }
+
+@keyframes par-slide {
+    from { background-position: 100% 0; }
+    to   { background-position: -100% 0; }
+}
+
+.par-status {
+    min-height: 20px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Report status badges ----------------------------------------------- */
+.par-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: #fff;
+    background: var(--ut-palette-primary, #0572ce);
+}
+.par-badge[data-status="SUCCESS"] { background: var(--ut-palette-success, #278701); }
+.par-badge[data-status="ERROR"],
+.par-badge[data-status="UPLOAD_FAILED"] { background: var(--ut-palette-danger, #cb1100); }
+.par-badge[data-status="QUEUED"]  { background: #7a7a7a; }

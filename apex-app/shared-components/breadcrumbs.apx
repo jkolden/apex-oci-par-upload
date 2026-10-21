@@ -1,0 +1,31 @@
+breadcrumb breadcrumb (
+    name: Breadcrumb
+
+    entry loaded-records (
+        name: Loaded Records
+        pageNumber: 6
+        execution {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 6
+            }
+        }
+    )
+
+    entry par-upload (
+        name: PAR Upload
+        pageNumber: 4
+        execution {
+            sequence: 10
+        }
+        link {
+            target: {
+                page: 4
+            }
+        }
+    )
+
+)
+

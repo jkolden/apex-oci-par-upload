@@ -1,0 +1,59 @@
+app PAR-2 (
+    name: PAR Upload to Object Storage
+    logo {
+        type: text
+        text: PAR Upload
+    }
+    navigation {
+        homeUrl: {
+            page: 4
+        }
+        loginUrl: {
+            page: LOGIN
+        }
+    }
+    navigationMenu {
+        listTemplate: @/side-navigation-menu
+        templateOptions: [
+            #DEFAULT#
+            js-defaultCollapsed
+            js-navCollapsed--hidden
+            t-TreeNav--styleA
+        ]
+        list: @navigation-menu
+    }
+    navigationBar {
+        list: @navigation-bar
+        listTemplate: @/navigation-bar
+        templateOptions: #DEFAULT#
+    }
+    userInterface {
+        currentTheme: @universal-theme
+        globalPage: 0
+    }
+    appFormatMasks {
+        date: DS
+        timestamp: DS
+        timestampTimeZone: DS
+    }
+    authentication {
+        scheme: @oracle-apex-accounts
+    }
+    security {
+        deepLinking: true
+    }
+    sessionStateProtection {
+        checksumSalt: 51B30FE929C963DFAD4E4B287E2B49999106F36F5D6EBE1015510F2706E72191
+    }
+    runtime {
+        allowFeedback: true
+    }
+
+    substitution APP_NAME (
+        value {
+            staticValue: PAR Upload to Object Storage
+        }
+    )
+
+)
+

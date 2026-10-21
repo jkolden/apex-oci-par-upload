@@ -1,0 +1,158 @@
+page 5 (
+    name: Audit
+    alias: REJECTED-ROWS
+    title: Audit
+    appearance {
+        pageMode: modalDialog
+        dialogTemplate: @/modal-dialog
+        templateOptions: #DEFAULT#
+    }
+    dialog {
+        width: 1000
+    }
+    navigation {
+        cursorFocus: doNotFocusCursor
+    }
+    security {
+        pageAccessProtection: argumentsMustHaveChecksum
+        formAutoComplete: false
+    }
+
+    region reasons (
+        name: Reasons
+        type: classicReport
+        source {
+            location: localDatabase
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                return pkg_oci_load.rejects_query(:P5_LOAD_ID, 'LOG');
+                
+                ```
+        }
+        layout {
+            sequence: 30
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+
+        column LINE_NO (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: Record #
+                alignment: end
+            }
+            layout {
+                sequence: 10
+                columnAlignment: center
+            }
+        )
+
+        column RECORD (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Reason
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <code>#RECORD#</code>
+            }
+        )
+
+    )
+
+    region rejected-rows (
+        name: Rejected Rows
+        type: classicReport
+        source {
+            location: localDatabase
+            type: functionBody
+            plsqlFunctionBody:
+                ```plsql
+                return pkg_oci_load.rejects_query(:P5_LOAD_ID, 'BAD');
+                
+                ```
+        }
+        layout {
+            sequence: 10
+            slot: contentBody
+        }
+        appearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Region--scrollBody
+            ]
+        }
+        componentAppearance {
+            template: @/standard
+            templateOptions: [
+                #DEFAULT#
+                t-Report--altRowsDefault
+                t-Report--rowHighlight
+            ]
+        }
+        pagination {
+            type: nextAndPreviousLinks
+        }
+
+        column LINE_NO (
+            reportColumnQueryId: 1
+            derivedColumn: N
+            heading {
+                heading: #
+                alignment: center
+            }
+            layout {
+                sequence: 10
+                columnAlignment: end
+            }
+        )
+
+        column RECORD (
+            reportColumnQueryId: 2
+            derivedColumn: N
+            heading {
+                heading: Record
+            }
+            layout {
+                sequence: 20
+            }
+            columnFormatting {
+                htmlExpression: <code>#RECORD#</code>
+            }
+        )
+
+    )
+
+    pageItem P5_LOAD_ID (
+        type: hidden
+        layout {
+            sequence: 20
+            slot: contentBody
+        }
+    )
+
+)
+

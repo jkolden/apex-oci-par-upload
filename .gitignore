@@ -1,0 +1,12 @@
+# Test data and local scratch
+*.csv
+*.bin
+__pycache__/
+*.pyc
+
+# Never commit keys or wallets
+*.pem
+*.key
+Wallet_*.zip
+ewallet.*
+.env
