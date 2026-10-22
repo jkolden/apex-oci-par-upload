@@ -1,2 +1,4 @@
 # Shell scripts must keep LF line endings to run on Linux/macOS
 *.sh text eol=lf
+# Built and run on Linux: keep LF line endings regardless of the checkout platform
+oci-function/** text eol=lf
