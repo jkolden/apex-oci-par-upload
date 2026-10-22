@@ -25,10 +25,12 @@ lands, a background job runs `DBMS_CLOUD.COPY_DATA` from the bucket into a table
 | PGP-encrypted upload, 1,000-row CSV | Bucket holds ciphertext only (15% of original size); decrypts to a byte-for-byte identical file |
 | PGP encryption, 856 MB CSV (outside the browser, same code path) | 125 MB of ciphertext (14.6%), ~77 MB/s, memory stays around 100–140 MB |
 | PGP-encrypted 1,000-row CSV, **decrypted in OCI and loaded** | Encrypted to 16% and uploaded in 2 s; decrypted by the OCI Function and loaded in 3 s (997 rows, 3 rejected); 5 s total |
+| **PGP-encrypted 856 MB CSV, decrypted in OCI and loaded** | Encrypted to 125 MB (15%) and uploaded in 1 min 13 s; decrypted and loaded in 1 min 12 s (6,507,526 rows); **2 min 28 s total**, vs about 6 min for the same file unencrypted |
 | Decrypt function on its own | 134,192-byte CSV decrypted in 0.7 s inside OCI; 856 MB decrypted and gunzipped in 3.7 s in local tests |
 
 Upload time depends on the user's connection. Once a file is in the bucket, the database
-loads millions of rows in seconds.
+loads millions of rows in seconds. Because PGP mode compresses before encrypting, encrypted
+CSV uploads end up **faster** overall than plain ones.
 
 ## How it works
 
