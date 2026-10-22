@@ -20,12 +20,29 @@ create or replace package pkg_oci_load as
     -- Bad rows tolerated before COPY_DATA fails the load.
     gc_reject_limit constant varchar2(10)  := '100';
 
+    -- -------------------------------------------------------------------------
+    -- OPTIONAL: automatic PGP decryption (docs/pgp-decrypt-setup.md). The OCI Function
+    -- in oci-function/pgp-decrypt turns an encrypted upload (<name>.gz.pgp) into a
+    -- short-lived plaintext staging object that run_load loads and then deletes.
+    -- -------------------------------------------------------------------------
+    -- "fnproject.io/fn/invokeEndpoint" from: fn inspect function <app> pgp-decrypt
+    gc_fn_invoke_url      constant varchar2(500) := '<https://....functions.oci.oraclecloud.com/20181201/functions/ocid1.fnfunc..../actions/invoke>';
+    -- DBMS_CLOUD credential that signs requests with an OCI API key (auth tokens can't call Functions).
+    gc_fn_credential      constant varchar2(128) := 'OCI_API_KEY_CRED';
+    gc_staging_prefix     constant varchar2(50)  := 'apex_staging/';
+
     -- Queue a background load of p_object_name into gc_target_table.
     -- Returns the oci_load_log.load_id to poll for status.
     function submit_load(p_object_name in varchar2) return number;
 
-    -- Run by the scheduler job created in submit_load.
+    -- Run by the scheduler job created in submit_load. Objects ending in .pgp are
+    -- decrypted to a staging object first (status DECRYPTING), loaded, then the
+    -- staging object is deleted.
     procedure run_load(p_load_id in number);
+
+    -- Call the pgp-decrypt function for p_object_name (e.g. apex_uploads/x.csv.gz.pgp).
+    -- Returns the plaintext staging object name (apex_staging/x.csv); the caller deletes it.
+    function decrypt_to_staging(p_object_name in varchar2) return varchar2;
 
     -- Called before reading a load's status. If the load is still QUEUED/RUNNING but its
     -- scheduler job has gone (e.g. the job failed before run_load could record it),

@@ -24,6 +24,8 @@ lands, a background job runs `DBMS_CLOUD.COPY_DATA` from the bucket into a table
 | 1,000-row CSV with 3 bad rows | 997 loaded, 3 rejected and shown with the reason for each |
 | PGP-encrypted upload, 1,000-row CSV | Bucket holds ciphertext only (15% of original size); decrypts to a byte-for-byte identical file |
 | PGP encryption, 856 MB CSV (outside the browser, same code path) | 125 MB of ciphertext (14.6%), ~77 MB/s, memory stays around 100–140 MB |
+| PGP-encrypted 1,000-row CSV, **decrypted in OCI and loaded** | Encrypted to 16% and uploaded in 2 s; decrypted by the OCI Function and loaded in 3 s (997 rows, 3 rejected); 5 s total |
+| Decrypt function on its own | 134,192-byte CSV decrypted in 0.7 s inside OCI; 856 MB decrypted and gunzipped in 3.7 s in local tests |
 
 Upload time depends on the user's connection. Once a file is in the bucket, the database
 loads millions of rows in seconds.
@@ -74,6 +76,8 @@ sequenceDiagram
 - Loaded Records page with KPI cards that follow the report's filters
 - Optional **PGP encryption in the browser**: files are compressed and encrypted with your
   public key before upload, so the bucket only ever holds ciphertext
+- Optional **automatic decryption in OCI**: an OCI Function with the private key in OCI Vault
+  decrypts encrypted CSVs so they load like any other
 - Test data generator for files of any size, with deliberate bad rows if you want them
 
 ## Repository layout
@@ -92,8 +96,10 @@ db/
   get_invoice_kpis.sql     KPIs for the Loaded Records page
   uninstall.sql
 tools/make_test_csv.py     test CSV generator
+oci-function/pgp-decrypt/  OCI Function (Python + gpg) that decrypts uploads inside OCI
 tools/pgp_verify.sh        proves a PGP upload round trip (ciphertext in bucket, identical after decrypt)
 docs/manual-page-build.md  build the pages by hand instead of importing
+docs/pgp-decrypt-setup.md  set up automatic decryption (Vault, Functions, policies)
 ```
 
 ## Prerequisites
@@ -256,9 +262,10 @@ encrypts it with [OpenPGP.js](https://openpgpjs.org/) using your **public** key,
 the ciphertext as `<name>.gz.pgp`. Large files still stream in parts with bounded memory.
 CSVs shrink a lot when compressed, so encrypted uploads are usually much faster.
 
-> Encrypted files are **not loaded into the database**: that needs server-side decryption
-> (for example an OCI Function holding the private key in OCI Vault), which this repo
-> doesn't include yet. The "Load into ATP" step shows as skipped for encrypted uploads.
+> On its own, this stores encrypted files without loading them (the "Load into ATP" step
+> shows as skipped). To **load encrypted CSVs automatically**, deploy the OCI Function in
+> [`oci-function/pgp-decrypt`](oci-function/pgp-decrypt) and add `loadEncrypted: true` to
+> the Upload button: see [docs/pgp-decrypt-setup.md](docs/pgp-decrypt-setup.md).
 
 **Setup**
 
@@ -295,7 +302,25 @@ tools/pgp_verify.sh "<read URL>" path/to/original.csv
 It shows the stored bytes are binary ciphertext, decrypts with your private key, and
 compares checksums with the original. To decrypt by hand: `gpg -d file.csv.gz.pgp | gzip -dc > file.csv`
 
-**Why the file is gzipped first:** OpenPGP.js's built-in compression reads the whole input
+### Automatic decryption in OCI
+
+```
+Browser ─► apex_uploads/x.csv.gz.pgp       (ciphertext)
+run_load: DECRYPTING ─► OCI Function pgp-decrypt (private key from OCI Vault)
+                          get object → gpg --decrypt → gunzip → apex_staging/x.csv
+          RUNNING    ─► COPY_DATA apex_staging/x.csv → target table
+          then       ─► delete apex_staging/x.csv  (+ 1-day lifecycle rule as a backstop)
+```
+
+The private key stays in OCI Vault and is readable only by the function. The database calls
+the function with `DBMS_CLOUD.SEND_REQUEST` using an API-key credential (or the Autonomous
+Database resource principal). The function streams, so memory stays flat at any file size,
+and it only reads under `apex_uploads/` and writes under `apex_staging/`. Setup takes about
+an hour the first time: [docs/pgp-decrypt-setup.md](docs/pgp-decrypt-setup.md).
+
+### Why the file is gzipped first
+
+OpenPGP.js's built-in compression reads the whole input
 into memory when the upload is slower than encryption, which it always is. Compressing 1 MB
 blocks with the browser's native `CompressionStream` and turning OpenPGP compression off keeps
 memory bounded. The result is a standard multi-member gzip that `gzip`, zlib and Python
@@ -312,6 +337,8 @@ read as one file.
 | Part size / multipart threshold / parallel parts / retries | top of `par_upload.js` | 64 MB / 128 MB / 4 / 3 |
 | Encrypted part size / gzip block size | `ENC_PART_SIZE` / `ENC_BLOCK_SIZE` in `par_upload.js` | 16 MB / 1 MB |
 | PGP public key | `publicKeyUrl` option on the Upload button | `#APP_FILES#pgp_public_key.asc` |
+| Load encrypted CSVs (needs the decrypt function) | `loadEncrypted` option on the Upload button | `false` |
+| Decrypt function URL / its credential / staging folder | `pkg_oci_load.gc_fn_invoke_url` / `gc_fn_credential` / `gc_staging_prefix` | placeholder / `OCI_API_KEY_CRED` / `apex_staging/` |
 | Status poll interval / give-up time | top of `par_upload.js` | 3 s / 60 min |
 
 ## Troubleshooting
@@ -324,6 +351,10 @@ read as one file.
 | "OpenPGP.js is not loaded on this page" | The OpenPGP.js File URL is missing or listed after `par_upload.js` |
 | "Could not load the PGP public key (HTTP 404)" | `pgp_public_key.asc` isn't uploaded as a static application file |
 | `... is not a function` in the browser console | The browser is using a cached old `par_upload.js`. Bump `?v=N` on the page's File URL |
+| `PGP decryption failed (HTTP 401)` in Load History | The `OCI_API_KEY_CRED` key, fingerprint or OCIDs are wrong |
+| `PGP decryption failed (HTTP 404)` | Typo in `gc_fn_invoke_url`, or the function was redeployed under a new OCID |
+| `PGP decryption failed` with `gpg failed: ... No secret key` | The secret holds a different private key than the public key in APEX |
+| Function error mentioning the secret or bucket | Dynamic group rule or policy missing; new policies can take a minute to apply |
 | Load stays QUEUED | The scheduler job couldn't start (check `CREATE JOB`). The page's status check marks dead jobs as ERROR |
 | Rejected Rows says "no longer available" | The `COPY$n_LOG`/`COPY$n_BAD` tables were dropped (`dbms_cloud.delete_all_operations`) |
 
@@ -357,3 +388,7 @@ order by message_timestamp desc;
   it with an authorization scheme outside of demos.
 - `COPY$n_LOG`/`COPY$n_BAD` tables accumulate. Clean them up periodically with
   `dbms_cloud.delete_all_operations('COPY')`.
+- With automatic decryption, the **plaintext staging copy** exists for the length of each load
+  and is readable by anyone who can read the bucket. It's deleted afterwards, but if the bucket
+  has **object versioning** on, old versions remain: add a lifecycle rule for previous
+  versions, or stage into a separate unversioned bucket with tighter access.

@@ -247,7 +247,9 @@ var parUpload = (function () {
             var secs = ((Date.now() - started) / 1000).toFixed(0);
             if (s.status === "SUCCESS") { return s; }
             if (s.status === "ERROR")   { throw new Error("Load failed: " + s.error); }
-            status.textContent = "Loading into ATP (" + s.status.toLowerCase() + ", " + secs + "s)...";
+            status.textContent = s.status === "DECRYPTING"
+                ? "Decrypting in OCI (" + secs + "s)..."
+                : "Loading into ATP (" + s.status.toLowerCase() + ", " + secs + "s)...";
         }
     }
 
@@ -343,6 +345,7 @@ var parUpload = (function () {
      * opts.loadRegion    optional static id of the load history region to refresh
      * opts.encryptToggleId optional id of a checkbox; when checked the file is PGP-encrypted
      * opts.publicKeyUrl  URL of the armored PGP public key (required when encrypting)
+     * opts.loadEncrypted true to load encrypted CSVs too (needs the pgp-decrypt OCI Function)
      */
     async function start(opts) {
         var input    = document.getElementById(opts.fileInputId);
@@ -360,8 +363,8 @@ var parUpload = (function () {
 
         var toggle     = opts.encryptToggleId && document.getElementById(opts.encryptToggleId);
         var encrypt    = !!(toggle && toggle.checked);
-        // Encrypted files aren't loaded until server-side decryption exists (Phase 2).
-        var isCsv      = /\.csv$/i.test(file.name) && !encrypt;
+        // Encrypted CSVs are only loaded when the server can decrypt them (pgp-decrypt function).
+        var isCsv      = /\.csv$/i.test(file.name) && (!encrypt || !!opts.loadEncrypted);
         var phase      = "upload";
         var started    = Date.now();
         var objectName = null;

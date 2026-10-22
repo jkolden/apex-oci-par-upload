@@ -83,6 +83,7 @@ parUpload.start({
   loadRegion:    "loads",
   encryptToggleId: "parEncrypt",
   publicKeyUrl:    apex.env.APP_FILES + "pgp_public_key.asc"
+  // , loadEncrypted: true   // only with the decrypt function (docs/pgp-decrypt-setup.md)
 });
 ```
 

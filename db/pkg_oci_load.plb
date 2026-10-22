@@ -43,8 +43,64 @@ create or replace package body pkg_oci_load as
     -- Flow: TRUNCATE target -> COPY_DATA -> record counts from user_load_operations
     -- =========================================================================
 
+    -- =========================================================================
+    -- PGP DECRYPTION (OCI Function)
+    -- =========================================================================
+    -- The function streams the encrypted object through gpg and gunzip into a
+    -- plaintext staging object, using a private key it reads from OCI Vault.
+    -- =========================================================================
+
+    function decrypt_to_staging(p_object_name in varchar2) return varchar2 is
+        l_target varchar2(1000);
+        l_resp   dbms_cloud_types.resp;
+        l_status number;
+        l_text   clob;
+    begin
+        l_target := gc_staging_prefix
+            || regexp_replace(substr(p_object_name, length(pkg_oci_par.gc_upload_prefix) + 1),
+                              '(\.gz)?\.pgp$', '', 1, 1, 'i');
+
+        -- Large files can take a few minutes to decrypt (the function allows 300 s).
+        utl_http.set_transfer_timeout(300);
+
+        l_resp := dbms_cloud.send_request(
+            credential_name => gc_fn_credential,
+            uri             => gc_fn_invoke_url,
+            method          => dbms_cloud.method_post,
+            body            => utl_raw.cast_to_raw(json_object(
+                                   'namespace' value pkg_oci_par.gc_namespace,
+                                   'bucket'    value pkg_oci_par.gc_bucket_name,
+                                   'object'    value p_object_name,
+                                   'target'    value l_target))
+        );
+
+        -- The function reports failures as {"error": ...}; depending on how OCI relays the
+        -- function's status code this can arrive with HTTP 200, so check both.
+        l_status := dbms_cloud.get_response_status_code(l_resp);
+        l_text   := dbms_cloud.get_response_text(l_resp);
+        if l_status <> 200 or dbms_lob.instr(l_text, '"error"') > 0 then
+            raise_application_error(-20112, 'PGP decryption failed (HTTP ' || l_status || '): '
+                || dbms_lob.substr(l_text, 2000, 1));
+        end if;
+        return l_target;
+    end decrypt_to_staging;
+
+    procedure delete_staging(p_object_name in varchar2) is
+    begin
+        dbms_cloud.delete_object(credential_name => gc_credential,
+                                 object_uri      => gc_bucket_uri || p_object_name);
+    exception
+        when others then
+            null;   -- the bucket lifecycle rule removes anything left behind
+    end delete_staging;
+
+
     procedure run_load(p_load_id in number) is
         l_object_name   oci_load_log.object_name%type;
+        l_source        varchar2(1000);
+        l_staging       varchar2(1000);
+        l_encrypted     boolean;
+        l_status        oci_load_log.status%type;
         l_operation_id  number;
         l_rows_loaded   number;
         l_rejected      number := 0;
@@ -52,18 +108,29 @@ create or replace package body pkg_oci_load as
         l_badfile_table varchar2(128);
         l_error_msg     varchar2(4000);
     begin
+        select object_name into l_object_name from oci_load_log where load_id = p_load_id;
+        l_encrypted := lower(l_object_name) like '%.pgp';
+
+        l_status := case when l_encrypted then 'DECRYPTING' else 'RUNNING' end;
         update oci_load_log
-        set    status = 'RUNNING', started_ts = systimestamp
-        where  load_id = p_load_id
-        returning object_name into l_object_name;
+        set    status = l_status, started_ts = systimestamp
+        where  load_id = p_load_id;
         commit;
+
+        l_source := l_object_name;
+        if l_encrypted then
+            l_staging := decrypt_to_staging(l_object_name);
+            l_source  := l_staging;
+            update oci_load_log set status = 'RUNNING' where load_id = p_load_id;
+            commit;
+        end if;
 
         execute immediate 'truncate table ' || dbms_assert.simple_sql_name(gc_target_table);
 
         dbms_cloud.copy_data(
             table_name      => gc_target_table,
             credential_name => gc_credential,
-            file_uri_list   => gc_bucket_uri || l_object_name,
+            file_uri_list   => gc_bucket_uri || l_source,
             format          => json_object(
                                  'type'                 value 'csv',
                                  'skipheaders'          value '1',
@@ -102,9 +169,16 @@ create or replace package body pkg_oci_load as
                completed_ts  = systimestamp
         where  load_id = p_load_id;
         commit;
+
+        if l_staging is not null then
+            delete_staging(l_staging);   -- plaintext copy is only needed for the load
+        end if;
     exception
         when others then
             l_error_msg := substr(sqlerrm || chr(10) || dbms_utility.format_error_backtrace, 1, 4000);
+            if l_staging is not null then
+                delete_staging(l_staging);
+            end if;
             update oci_load_log
             set    status        = 'ERROR',
                    operation_id  = l_operation_id,
@@ -130,7 +204,7 @@ create or replace package body pkg_oci_load as
         l_errors varchar2(4000);
     begin
         select status into l_status from oci_load_log where load_id = p_load_id;
-        if l_status not in ('QUEUED', 'RUNNING') then
+        if l_status not in ('QUEUED', 'DECRYPTING', 'RUNNING') then
             return;
         end if;
 
@@ -149,7 +223,7 @@ create or replace package body pkg_oci_load as
                error_message = nvl(l_errors, 'Load job ended without recording a result.'),
                completed_ts  = systimestamp
         where  load_id = p_load_id
-        and    status in ('QUEUED', 'RUNNING');
+        and    status in ('QUEUED', 'DECRYPTING', 'RUNNING');
         commit;
     exception
         when no_data_found then
